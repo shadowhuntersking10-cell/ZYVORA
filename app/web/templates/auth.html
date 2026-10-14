@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}{{ t('nav.login') if mode == 'login' else t('nav.register') }} · {{ app_name }}{% endblock %}
+{% block body %}
+<main class="container" style="min-height:100vh; display:grid; place-items:center; padding:2rem 1rem;">
+  <div style="width:100%; max-width:420px;">
+    <div class="center mb-2">
+      <a class="logo" href="/" style="justify-content:center"><span class="mark">Z</span> {{ app_name }}</a>
+    </div>
+    <div class="card">
+      {% if mode == 'login' %}
+        <h2>{{ t('auth.login.title') }}</h2>
+        <form id="loginForm" novalidate>
+          <div class="field">
+            <label for="email">{{ t('common.email') }}</label>
+            <input class="input" type="email" id="email" name="email" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <label for="password">{{ t('common.password') }}</label>
+            <input class="input" type="password" id="password" name="password" autocomplete="current-password" required>
+          </div>
+          <div class="form-error" id="formError" role="alert"></div>
+          <button class="btn primary" style="width:100%" type="submit" id="submitBtn">{{ t('auth.submit.login') }}</button>
+        </form>
+        <div class="row mt-2 small">
+          <a class="grow" href="/forgot-password">{{ t('auth.forgot') }}</a>
+          <a href="/register">{{ t('auth.no_account') }} {{ t('nav.register') }}</a>
+        </div>
+      {% elif mode == 'register' %}
+        <h2>{{ t('auth.register.title') }}</h2>
+        <form id="regForm" novalidate>
+          <div class="field">
+            <label for="name">{{ t('common.name') }}</label>
+            <input class="input" type="text" id="name" name="name" autocomplete="name" required minlength="2">
+          </div>
+          <div class="field">
+            <label for="email">{{ t('common.email') }}</label>
+            <input class="input" type="email" id="email" name="email" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <label for="password">{{ t('common.password') }}</label>
+            <input class="input" type="password" id="password" name="password" autocomplete="new-password" required minlength="8">
+          </div>
+          <div class="field">
+            <label for="password2">{{ t('auth.password2') }}</label>
+            <input class="input" type="password" id="password2" name="password2" autocomplete="new-password" required minlength="8">
+          </div>
+          <div class="field">
+            <label>{{ t('common.language') }}</label>
+            <div class="seg" id="langSeg">
+              <button type="button" data-lang="uz" class="active">🇺🇿 UZ</button>
+              <button type="button" data-lang="en">🇬🇧 EN</button>
+              <button type="button" data-lang="ru">🇷🇺 RU</button>
+            </div>
+          </div>
+          <div class="form-error" id="formError" role="alert"></div>
+          <button class="btn primary" style="width:100%" type="submit" id="submitBtn">{{ t('auth.submit.register') }}</button>
+        </form>
+        <p class="small mt-2 center muted">{{ t('auth.has_account') }} <a href="/login">{{ t('nav.login') }}</a></p>
+      {% elif mode == 'forgot' %}
+        <h2>{{ t('auth.forgot.title') }}</h2>
+        <form id="forgotForm" novalidate>
+          <div class="field">
+            <label for="email">{{ t('common.email') }}</label>
+            <input class="input" type="email" id="email" required>
+          </div>
+          <div class="form-error" id="formError" role="alert"></div>
+          <button class="btn primary" style="width:100%" type="submit">{{ t('auth.forgot.send') }}</button>
+        </form>
+        <div id="devLink" class="card inset mt-2 small" style="display:none"></div>
+        <p class="small mt-2 center"><a href="/login">{{ t('common.back') }}</a></p>
+      {% elif mode == 'reset' %}
+        <h2>{{ t('auth.forgot.title') }}</h2>
+        <form id="resetForm" novalidate>
+          <div class="field">
+            <label for="password">{{ t('auth.reset.new') }}</label>
+            <input class="input" type="password" id="password" required minlength="8">
+          </div>
+          <div class="field">
+            <label for="password2">{{ t('auth.password2') }}</label>
+            <input class="input" type="password" id="password2" required minlength="8">
+          </div>
+          <div class="form-error" id="formError" role="alert"></div>
+          <button class="btn primary" style="width:100%" type="submit">{{ t('common.confirm') }}</button>
+        </form>
+      {% endif %}
+    </div>
+    <p class="center small mt-2"><a href="/" style="color:var(--muted)">← {{ app_name }}</a></p>
+  </div>
+</main>
+<script>
+  window.ZY_LANG = "{{ lang }}";
+  window.ZY_RESET_TOKEN = "{{ token if mode == 'reset' else '' }}";
+</script>
+<script src="/static/js/auth.js"></script>
+{% endblock %}

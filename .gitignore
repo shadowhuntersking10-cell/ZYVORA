@@ -1,0 +1,20 @@
+# secrets & local config
+.env
+*.env.local
+
+# runtime data (sqlite db, uploads, generated files)
+data/
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# tooling
+.DS_Store
+*.log
+node_modules/
+dist/
+build/

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <meta name="description" content="ZYVORA — AI Creative Studio: 2D, 3D, animation, AI generation. Telegram WebApp.">
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/softui.css">
+  <script>
+    // Apply saved theme/lang before paint to avoid flash
+    (function () {
+      var theme = localStorage.getItem('zyvora_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+      try {
+        var tg = window.Telegram && window.Telegram.WebApp;
+        if (tg && tg.themeParams && tg.colorScheme === 'dark') { /* handled in app.js too */ }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+{% block body %}{% endblock %}
+</body>
+</html>

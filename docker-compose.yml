@@ -1,0 +1,50 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root-secret}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-zyvora}
+      MYSQL_USER: ${MYSQL_USER:-zyvora}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zyvora}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-zyvora}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zyvora}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-zyvora}
+      ZYVORA_PUBLIC_URL: ${ZYVORA_PUBLIC_URL}
+      ZYVORA_SECRET_KEY: ${ZYVORA_SECRET_KEY}
+      ZYVORA_DEBUG: ${ZYVORA_DEBUG:-0}
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      BOT_USERNAME: ${BOT_USERNAME:-}
+      ZYVORA_ADMIN_IDS: ${ZYVORA_ADMIN_IDS:-}
+      ZYVORA_ADMIN_EMAIL: ${ZYVORA_ADMIN_EMAIL:-}
+      ZYVORA_ADMIN_PASSWORD: ${ZYVORA_ADMIN_PASSWORD:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      STABILITY_API_KEY: ${STABILITY_API_KEY:-}
+      MESHY_API_KEY: ${MESHY_API_KEY:-}
+      RUNWAY_API_KEY: ${RUNWAY_API_KEY:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - app_data:/opt/zyvora/data
+
+volumes:
+  mysql_data:
+  app_data:

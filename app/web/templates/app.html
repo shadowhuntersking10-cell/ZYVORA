@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ app_name }} · {{ t('dash.title') }}{% endblock %}
+{% block body %}
+<div id="gate" style="display:none; min-height:100vh; place-items:center; padding:1.5rem;">
+  <div class="card center" style="max-width:430px">
+    <div style="font-size:2.6rem">✈️</div>
+    <h2>{{ t('wa.open_bot') }}</h2>
+    <p class="muted small">{{ t('wa.open_bot_hint') }}</p>
+    <div class="btn-row" style="justify-content:center">
+      {% if bot_username %}<a class="btn primary" href="https://t.me/{{ bot_username }}?start=1" target="_blank" rel="noopener">@{{ bot_username }}</a>{% endif %}
+      <a class="btn ghost" href="/">{{ t('common.back') }}</a>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="appShell" style="display:none">
+  <aside class="sidebar" id="sidebar">
+    <a class="logo" href="#/dashboard"><span class="mark">Z</span> {{ app_name }}</a>
+    <a class="nav-item" data-nav="dashboard" href="#/dashboard"><span class="ico">🏠</span><span data-i18n="dash.title">{{ t('dash.title') }}</span></a>
+    <a class="nav-item" data-nav="projects" href="#/projects"><span class="ico">🗂</span><span data-i18n="dash.projects">{{ t('dash.projects') }}</span></a>
+    <div class="nav-sep">{{ t('dash.title') }} · Studios</div>
+    <a class="nav-item" data-nav="studio2d" href="#/new/2d"><span class="ico">🎨</span><span data-i18n="studio.2d">{{ t('studio.2d') }}</span></a>
+    <a class="nav-item" data-nav="studio3d" href="#/new/3d"><span class="ico">🧊</span><span data-i18n="studio.3d">{{ t('studio.3d') }}</span></a>
+    <a class="nav-item" data-nav="animation" href="#/new/animation"><span class="ico">🎞</span><span data-i18n="studio.animation">{{ t('studio.animation') }}</span></a>
+    <a class="nav-item" data-nav="character" href="#/new/character"><span class="ico">🧑‍🎨</span><span data-i18n="studio.character">{{ t('studio.character') }}</span></a>
+    <div class="nav-sep">AI</div>
+    <a class="nav-item" data-nav="ai" href="#/ai"><span class="ico">🪄</span><span data-i18n="ai.title">{{ t('ai.title') }}</span></a>
+    <a class="nav-item" data-nav="assistant" href="#/assistant"><span class="ico">🤖</span><span data-i18n="as.title">{{ t('as.title') }}</span></a>
+    <a class="nav-item" data-nav="assets" href="#/assets"><span class="ico">🖼</span><span data-i18n="up.title">{{ t('up.title') }}</span></a>
+    <div class="nav-sep">{{ t('admin.panel') }}</div>
+    <a class="nav-item admin-only" data-nav="admin" href="#/admin" style="display:none"><span class="ico">🛡</span><span data-i18n="admin.panel">{{ t('admin.panel') }}</span></a>
+    <div class="grow" style="flex:1"></div>
+    <div class="card inset" style="padding:.7rem .9rem">
+      <div class="row small"><span>💎</span><b id="creditsVal">0</b><span class="muted" style="margin-left:auto" data-i18n="common.credits">{{ t('common.credits') }}</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <button class="btn icon burger" id="burger" aria-label="menu">☰</button>
+      <div class="title" id="viewTitle">{{ t('dash.title') }}</div>
+      <span class="badge" id="saveState" style="display:none"></span>
+      <span class="badge acc" id="genState" style="display:none"></span>
+      <div class="spacer"></div>
+      <div class="seg" id="langSeg" role="group" aria-label="language">
+        <button data-lang="uz">🇺🇿</button><button data-lang="en">🇬🇧</button><button data-lang="ru">🇷🇺</button>
+      </div>
+      <button class="btn icon" id="themeBtn" title="Day/Night">🌙</button>
+      <button class="btn icon rel" id="notifBtn" title="{{ t('notif.title') }}">🔔<span class="notif-dot" id="notifDot"></span></button>
+      <div class="rel">
+        <div class="avatar" id="avatarBtn">Z</div>
+        <div class="menu" id="userMenu">
+          <div class="mi" style="cursor:default"><b id="menuName">—</b></div>
+          <div class="divider" style="margin:.3rem 0"></div>
+          <button class="mi" id="menuProfile">👤 <span data-i18n="common.profile">{{ t('common.profile') }}</span></button>
+          <button class="mi" id="menuSite">🌐 Website</button>
+          <button class="mi" id="menuLogout">🚪 <span data-i18n="common.logout">{{ t('common.logout') }}</span></button>
+        </div>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="modal-back" id="modalBack">
+  <div class="modal" id="modalBox" role="dialog" aria-modal="true"></div>
+</div>
+
+<script>
+  window.ZY = {
+    LANG: "{{ lang }}",
+    MODE: "{{ mode }}",
+    PACK: {{ lang_pack_json | safe }},
+    NAME: "{{ app_name }}",
+    IS_TG: false,
+  };
+  try {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+      window.ZY.IS_TG = true;
+      window.ZY.INIT_DATA = window.Telegram.WebApp.initData;
+      window.Telegram.WebApp.expand();
+    }
+  } catch (e) {}
+</script>
+<script type="importmap">
+{ "imports": { "three": "/static/vendor/three/three.module.min.js", "three/addons/": "/static/vendor/three/addons/" } }
+</script>
+<script type="module" src="/static/js/webapp/main.js"></script>
+{% endblock %}

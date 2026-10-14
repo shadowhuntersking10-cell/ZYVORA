@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Email · {{ app_name }}{% endblock %}
+{% block body %}
+<main class="container" style="min-height:100vh; display:grid; place-items:center; padding:2rem 1rem;">
+  <div class="card center" style="max-width:420px">
+    <div style="font-size:2.6rem">{{ '✅' if ok else '⚠️' }}</div>
+    <h2>{{ t('auth.verify.ok') if ok else t('auth.verify.fail') }}</h2>
+    <a class="btn primary mt-1" href="/login">{{ t('nav.login') }}</a>
+  </div>
+</main>
+{% endblock %}
