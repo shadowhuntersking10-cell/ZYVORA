@@ -23,9 +23,7 @@ import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
-SECRET=os.getenv("SECRET_KEY","")
-if len(SECRET)<16:
-    raise RuntimeError("SECRET_KEY is missing or too short. Set a long, stable SECRET_KEY in .env (it must NOT change between restarts, or all sessions die). Refusing to start.")
+SECRET=os.getenv("SECRET_KEY","")  # no longer used to sign tokens (server-side sessions); kept for future integrations
 DATABASE_URL=os.getenv("DATABASE_URL","sqlite:///./zyvora.db")
 DEV_AUTO_VERIFY=os.getenv("DEV_AUTO_VERIFY","true").lower()=="true"
 ACCESS_MINUTES=int(os.getenv("ACCESS_TOKEN_MINUTES","30"))
@@ -39,6 +37,8 @@ class User(Base):
  __tablename__="users"; id=Column(String,primary_key=True,default=lambda:str(uuid.uuid4())); email=Column(String,unique=True,index=True); name=Column(String); password_hash=Column(String); role=Column(String,default="user"); plan=Column(String,default="free"); is_blocked=Column(Boolean,default=False); email_verified=Column(Boolean,default=False); verify_token=Column(String,nullable=True); reset_token=Column(String,nullable=True); created_at=Column(DateTime,default=now)
 class RefreshSession(Base):
  __tablename__="refresh_sessions"; id=Column(String,primary_key=True,default=lambda:str(uuid.uuid4())); user_id=Column(String,ForeignKey("users.id"),index=True); token_hash=Column(String,index=True); prev_token_hash=Column(String,nullable=True); prev_grace_until=Column(DateTime,nullable=True); revoked=Column(Boolean,default=False); user_agent=Column(String,default=""); created_at=Column(DateTime,default=now); expires_at=Column(DateTime)
+class WebSession(Base):
+ __tablename__="web_sessions"; id=Column(String,primary_key=True,default=lambda:str(uuid.uuid4())); user_id=Column(String,ForeignKey("users.id"),index=True); token_hash=Column(String,index=True); revoked=Column(Boolean,default=False); user_agent=Column(String,default=""); created_at=Column(DateTime,default=now); expires_at=Column(DateTime)
 class Project(Base):
  __tablename__="projects"; id=Column(String,primary_key=True,default=lambda:str(uuid.uuid4())); owner_id=Column(String,ForeignKey("users.id"),index=True); name=Column(String); folder=Column(String,default=""); document=Column(Text,default="{}"); version=Column(Integer,default=1); created_at=Column(DateTime,default=now); updated_at=Column(DateTime,default=now,onupdate=now)
 class Asset(Base):
@@ -73,7 +73,21 @@ def db():
 def audit(d,user_id,action,detail="",ip=""):
  d.add(AuditLog(user_id=user_id,action=action,detail=detail,ip=ip)); d.commit()
 def hash_token(t): return hashlib.sha256(t.encode()).hexdigest()
-def make_access(u): return jwt.encode({"sub":str(u.id),"role":u.role,"exp":int((now()+timedelta(minutes=ACCESS_MINUTES)).timestamp())},SECRET,algorithm="HS256")
+SESSION_COOKIE="zyvora_session"; SESSION_DAYS=30
+def create_session(d,u,response,request):
+ raw=secrets.token_urlsafe(48)
+ d.add(WebSession(user_id=u.id,token_hash=hash_token(raw),user_agent=request.headers.get("user-agent","")[:250],expires_at=now()+timedelta(days=SESSION_DAYS))); d.commit()
+ response.set_cookie(SESSION_COOKIE,raw,httponly=True,samesite="lax",secure=os.getenv("COOKIE_SECURE","false").lower()=="true",path="/api",max_age=SESSION_DAYS*86400)
+ return raw
+def session_user(request:Request,d:Session):
+ raw=request.cookies.get(SESSION_COOKIE)
+ if not raw: log.info("auth: no session cookie on %s", request.url.path); return None
+ s=d.query(WebSession).filter_by(token_hash=hash_token(raw),revoked=False).first()
+ if not s: log.info("auth: session cookie not found in DB (stale) on %s", request.url.path); return None
+ if s.expires_at and s.expires_at.replace(tzinfo=timezone.utc)<now(): log.info("auth: session expired on %s", request.url.path); return None
+ u=d.get(User,s.user_id)
+ if not u: log.info("auth: session user missing on %s", request.url.path); return None
+ return u
 def user_out(u): return {"id":u.id,"email":u.email,"name":u.name,"role":u.role,"plan":u.plan,"email_verified":u.email_verified,"is_blocked":u.is_blocked,"created_at":u.created_at.isoformat() if u.created_at else None}
 def set_refresh(d,u,response,request):
  raw=secrets.token_urlsafe(48); exp=now()+timedelta(days=30)
@@ -81,11 +95,8 @@ def set_refresh(d,u,response,request):
  response.set_cookie("zyvora_refresh",raw,httponly=True,samesite="lax",secure=os.getenv("COOKIE_SECURE","false").lower()=="true",path="/api/auth",max_age=30*86400)
  return raw
 def current(request:Request, cred=Depends(bearer), d:Session=Depends(db)):
- if not cred: raise HTTPException(401,"Not authenticated")
- try: payload=jwt.decode(cred.credentials,SECRET,algorithms=["HS256"])
- except Exception: raise HTTPException(401,"Invalid or expired token")
- u=d.get(User,payload.get("sub"))
- if not u or u.is_blocked: raise HTTPException(401,"User not available")
+ u=session_user(request,d)
+ if not u or u.is_blocked: raise HTTPException(401,"Not authenticated")
  return u
 def admin(u=Depends(current)):
  if u.role!="admin": raise HTTPException(403,"Admin access required")
@@ -112,6 +123,7 @@ async def headers(request,call_next):
  r=await call_next(request); r.headers["X-Content-Type-Options"]="nosniff"; r.headers["X-Frame-Options"]="DENY"; r.headers["Referrer-Policy"]="same-origin"; return r
 
 class AuthIn(BaseModel): email:EmailStr; password:str=Field(min_length=8,max_length=128)
+class LoginIn(BaseModel): email:EmailStr; password:str=Field(min_length=1,max_length=128)
 class RegisterIn(AuthIn): name:str=Field(min_length=2,max_length=100)
 class ProjectIn(BaseModel): name:str=Field(min_length=1,max_length=120); folder:str=""; document:dict={}
 class DocIn(BaseModel): document:dict; name:str|None=None
@@ -131,50 +143,40 @@ def register(body:RegisterIn,request:Request,response:Response,d:Session=Depends
  d.add(u); d.commit(); d.refresh(u); d.add(CreditAccount(user_id=u.id)); d.add(CreditLedger(user_id=u.id,amount=100,reason="Welcome credits",balance_after=100)); d.commit()
  audit(d,u.id,"auth.register",u.email,request.client.host)
  print(f"[ZYVORA] verify link: /verify-email?token={u.verify_token} for {u.email}",flush=True)
- if DEV_AUTO_VERIFY: set_refresh(d,u,response,request); return {"user":user_out(u),"access_token":make_access(u),"email_verified":True}
+ if DEV_AUTO_VERIFY: create_session(d,u,response,request); return {"user":user_out(u),"email_verified":True}
  return {"user":user_out(u),"email_verified":False,"message":"Check your email to verify your account"}
 
 @app.post("/api/auth/login")
-def login(body:AuthIn,request:Request,response:Response,d:Session=Depends(db)):
+def login(body:LoginIn,request:Request,response:Response,d:Session=Depends(db)):
  rate(request,25); u=d.query(User).filter_by(email=body.email.lower()).first()
  if not u: raise HTTPException(401,"Invalid email or password")
  try: ph.verify(u.password_hash,body.password)
  except Exception: raise HTTPException(401,"Invalid email or password")
  if u.is_blocked: raise HTTPException(403,"Account blocked")
  if not u.email_verified and not DEV_AUTO_VERIFY: raise HTTPException(403,"Please verify your email first")
- set_refresh(d,u,response,request); audit(d,u.id,"auth.login",u.email,request.client.host)
- return {"user":user_out(u),"access_token":make_access(u)}
+ create_session(d,u,response,request); audit(d,u.id,"auth.login",u.email,request.client.host)
+ return {"user":user_out(u)}
 
 @app.post("/api/auth/refresh")
 def refresh(request:Request,response:Response,d:Session=Depends(db)):
- raw=request.cookies.get("zyvora_refresh")
- if not raw: raise HTTPException(401,"No refresh session")
- h=hash_token(raw)
- s=d.query(RefreshSession).filter_by(token_hash=h,revoked=False).first()
- if s and (not s.expires_at or s.expires_at.replace(tzinfo=timezone.utc)>=now()):
-  u=d.get(User,s.user_id)
-  if not u or u.is_blocked: raise HTTPException(401,"User not available")
-  # Rotate: current token becomes the "previous" token, valid for a 15s grace window,
-  # so a concurrent refresh carrying the pre-rotation cookie does NOT get a 401.
-  s.prev_token_hash=h; s.prev_grace_until=now()+timedelta(seconds=15); d.commit()
-  set_refresh(d,u,response,request)
-  return {"user":user_out(u),"access_token":make_access(u)}
- # Grace path: pre-rotation token presented within its window -> issue a fresh independent session.
- s=d.query(RefreshSession).filter_by(prev_token_hash=h,revoked=False).first()
- if s and s.prev_grace_until and s.prev_grace_until.replace(tzinfo=timezone.utc)>=now():
-  u=d.get(User,s.user_id)
-  if not u or u.is_blocked: raise HTTPException(401,"User not available")
-  set_refresh(d,u,response,request)
-  return {"user":user_out(u),"access_token":make_access(u),"grace":True}
- raise HTTPException(401,"Refresh session expired")
+ """Session check (route name kept for frontend compatibility): validates the httpOnly session cookie and slides expiry. No rotation, no race."""
+ u=session_user(request,d)
+ if not u or u.is_blocked: raise HTTPException(401,"No active session")
+ raw=request.cookies.get(SESSION_COOKIE); sess=d.query(WebSession).filter_by(token_hash=hash_token(raw)).first()
+ if sess: sess.expires_at=now()+timedelta(days=SESSION_DAYS); d.commit()
+ return {"user":user_out(u)}
 
 @app.post("/api/auth/logout")
 def logout(request:Request,response:Response,d:Session=Depends(db)):
- raw=request.cookies.get("zyvora_refresh")
+ raw=request.cookies.get(SESSION_COOKIE)
  if raw:
-  s=d.query(RefreshSession).filter_by(token_hash=hash_token(raw)).first()
-  if s: s.revoked=True; d.commit()
- response.delete_cookie("zyvora_refresh",path="/api/auth"); return {"ok":True}
+  sess=d.query(WebSession).filter_by(token_hash=hash_token(raw)).first()
+  if sess: sess.revoked=True; d.commit()
+ old=request.cookies.get("zyvora_refresh")
+ if old:
+  s2=d.query(RefreshSession).filter_by(token_hash=hash_token(old)).first()
+  if s2: s2.revoked=True; d.commit()
+ response.delete_cookie(SESSION_COOKIE,path="/api"); response.delete_cookie("zyvora_refresh",path="/api/auth"); return {"ok":True}
 
 @app.get("/api/auth/me")
 def me(u=Depends(current)): return user_out(u)
@@ -206,15 +208,15 @@ def change(body:dict,u=Depends(current),d:Session=Depends(db)):
  u.password_hash=ph.hash(body["new_password"]); d.commit(); return {"ok":True}
 @app.get("/api/auth/sessions")
 def sessions(u=Depends(current),d:Session=Depends(db)):
- return [{"id":s.id,"created_at":s.created_at.isoformat() if s.created_at else None,"user_agent":s.user_agent,"revoked":s.revoked} for s in d.query(RefreshSession).filter_by(user_id=u.id).order_by(RefreshSession.created_at.desc()).all()]
+ return [{"id":s.id,"created_at":s.created_at.isoformat() if s.created_at else None,"user_agent":s.user_agent,"revoked":s.revoked} for s in d.query(WebSession).filter_by(user_id=u.id).order_by(WebSession.created_at.desc()).all()]
 @app.delete("/api/auth/sessions/{sid}")
 def revoke(sid:str,u=Depends(current),d:Session=Depends(db)):
- s=d.query(RefreshSession).filter_by(id=sid,user_id=u.id).first()
+ s=d.query(WebSession).filter_by(id=sid,user_id=u.id).first()
  if not s: raise HTTPException(404,"Session not found")
  s.revoked=True; d.commit(); return {"ok":True}
 @app.delete("/api/auth/account")
 def delete_account(u=Depends(current),d:Session=Depends(db)):
- d.query(Project).filter_by(owner_id=u.id).delete(); d.query(RefreshSession).filter_by(user_id=u.id).delete(); d.delete(u); d.commit(); return {"ok":True}
+ d.query(Project).filter_by(owner_id=u.id).delete(); d.query(RefreshSession).filter_by(user_id=u.id).delete(); d.query(WebSession).filter_by(user_id=u.id).delete(); d.delete(u); d.commit(); return {"ok":True}
 
 def proj_out(p): return {"id":p.id,"name":p.name,"folder":p.folder,"document":json.loads(p.document or "{}"),"version":p.version,"updated_at":p.updated_at.isoformat() if p.updated_at else None,"created_at":p.created_at.isoformat() if p.created_at else None}
 def owned(pid,u,d):

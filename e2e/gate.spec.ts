@@ -26,14 +26,14 @@ test('Phase 0+1 gate: register->dashboard, persistence, nav, logout, login, gues
  await expect(page).toHaveURL(/\/dashboard/,{timeout:15000});
  console.log('AUTH LOG:\n'+authLog.join('\n'));
 });
-test('concurrent refresh with same pre-rotation cookie both succeed (grace window)',async({request})=>{
+test('concurrent session-check refresh with same session cookie both succeed (no rotation race)',async({request})=>{
  const email=`race-${uniq()}@example.com`;
  const r=await request.post('http://localhost:8000/api/auth/register',{data:{name:'Race',email,password:'Password123'}}); expect(r.status()).toBe(200);
- const setCookie=(await r.headersArray()).find(h=>h.name.toLowerCase()==='set-cookie')!.value;
- const token=setCookie.split(';')[0].split('=')[1];
+ const setCookie=(await r.headersArray()).filter(h=>h.name.toLowerCase()==='set-cookie').map(h=>h.value).join(',');
+ const token=(setCookie.match(/zyvora_session=([^;,]+)/)||[])[1];
  const [a,b]=await Promise.all([
-   request.post('http://localhost:8000/api/auth/refresh',{headers:{Cookie:`zyvora_refresh=${token}`}}),
-   request.post('http://localhost:8000/api/auth/refresh',{headers:{Cookie:`zyvora_refresh=${token}`}})]);
+   request.post('http://localhost:8000/api/auth/refresh',{headers:{Cookie:`zyvora_session=${token}`}}),
+   request.post('http://localhost:8000/api/auth/refresh',{headers:{Cookie:`zyvora_session=${token}`}})]);
  expect(a.status()).toBe(200); expect(b.status()).toBe(200);
 });
 test('guest opening / sees the Landing page, not the login form',async({page})=>{
@@ -68,17 +68,17 @@ test('register duplicate email shows REAL server error (not generic) and logs it
 test('ownership + admin 403 + duplicate email error',async({request,page})=>{
  const e1=`a-${uniq()}@example.com`, e2=`b-${uniq()}@example.com`;
  const r1=await request.post('http://localhost:8000/api/auth/register',{data:{name:'User A',email:e1,password:'Password123'}}); expect(r1.status()).toBe(200);
- const t1=(await r1.json()).access_token;
- const pr=await request.post('http://localhost:8000/api/projects',{headers:{Authorization:`Bearer ${t1}`},data:{name:'A project',document:{objects:[]}}}); const pid=(await pr.json()).id;
- const r2=await request.post('http://localhost:8000/api/auth/register',{data:{name:'User B',email:e2,password:'Password123'}}); const t2=(await r2.json()).access_token;
- const forbidden=await request.get(`http://localhost:8000/api/projects/${pid}`,{headers:{Authorization:`Bearer ${t2}`}}); expect(forbidden.status()).toBe(403);
- const adm=await request.get('http://localhost:8000/api/admin/stats',{headers:{Authorization:`Bearer ${t2}`}}); expect(adm.status()).toBe(403);
+ const ck1=(await r1.headersArray()).filter(h=>h.name.toLowerCase()==='set-cookie').map(h=>h.value).join(','); const t1=`zyvora_session=${(ck1.match(/zyvora_session=([^;,]+)/)||[])[1]}`;
+ const pr=await request.post('http://localhost:8000/api/projects',{headers:{Cookie:t1},data:{name:'A project',document:{objects:[]}}}); const pid=(await pr.json()).id;
+ const r2=await request.post('http://localhost:8000/api/auth/register',{data:{name:'User B',email:e2,password:'Password123'}}); const ck2=(await r2.headersArray()).filter(h=>h.name.toLowerCase()==='set-cookie').map(h=>h.value).join(','); const t2=`zyvora_session=${(ck2.match(/zyvora_session=([^;,]+)/)||[])[1]}`;
+ const forbidden=await request.get(`http://localhost:8000/api/projects/${pid}`,{headers:{Cookie:t2}}); expect(forbidden.status()).toBe(403);
+ const adm=await request.get('http://localhost:8000/api/admin/stats',{headers:{Cookie:t2}}); expect(adm.status()).toBe(403);
  const dup=await request.post('http://localhost:8000/api/auth/register',{data:{name:'Dup',email:e1,password:'Password123'}}); expect(dup.status()).toBe(409);
  // admin login works
- const ar=await request.post('http://localhost:8000/api/auth/login',{data:{email:'admin@example.com',password:'AdminPass123'}}); const at=(await ar.json()).access_token;
- const stats=await request.get('http://localhost:8000/api/admin/stats',{headers:{Authorization:`Bearer ${at}`}}); expect(stats.status()).toBe(200); expect((await stats.json()).users).toBeGreaterThan(0);
+ const ar=await request.post('http://localhost:8000/api/auth/login',{data:{email:'admin@example.com',password:'AdminPass123'}}); const cka=(await ar.headersArray()).filter(h=>h.name.toLowerCase()==='set-cookie').map(h=>h.value).join(','); const at=`zyvora_session=${(cka.match(/zyvora_session=([^;,]+)/)||[])[1]}`;
+ const stats=await request.get('http://localhost:8000/api/admin/stats',{headers:{Cookie:at}}); expect(stats.status()).toBe(200); expect((await stats.json()).users).toBeGreaterThan(0);
  // credits + refund + webhook idempotency guard (unconnected -> 503 honest)
- const cr=await request.get('http://localhost:8000/api/credits',{headers:{Authorization:`Bearer ${t1}`}}); expect((await cr.json()).balance).toBe(100);
+ const cr=await request.get('http://localhost:8000/api/credits',{headers:{Cookie:t1}}); expect((await cr.json()).balance).toBe(100);
  const wh=await request.post('http://localhost:8000/api/payments/webhook/stripe',{data:{id:'evt_test_1'}}); expect(wh.status()).toBe(503);
 });
 test('Phase 2-4 flow: create project -> 3D rotate persists -> character -> animate -> keyframes -> play -> cinema render',async({page})=>{
