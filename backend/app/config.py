@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./zyvora-dev.db"
     jwt_secret: str = "dev-only-change-me-please-0123456789abcdef"
     jwt_algorithm: str = "HS256"
-    access_token_minutes: int = 15
+    access_token_minutes: int = 30  # spec: 30-60 min; the client refreshes transparently
     refresh_token_days: int = 30
     cookie_secure: bool = False
     cors_origins: str = "http://localhost:5173"

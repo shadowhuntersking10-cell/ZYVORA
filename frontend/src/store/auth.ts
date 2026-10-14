@@ -16,8 +16,14 @@ export interface User {
 interface AuthState {
   accessToken: string | null;
   user: User | null;
-  /** true once the initial session restore has finished (success or not). */
+  /** true once the initial session restore has finished (success or not), or a login succeeded. */
   ready: boolean;
+  /**
+   * Increments on every session change (login, refresh, logout).
+   * Async work that started before a change compares this to detect that its result is stale,
+   * so an old 401 can never wipe a session that was created afterwards.
+   */
+  epoch: number;
   setSession: (token: string, user: User) => void;
   setUser: (user: User) => void;
   clear: () => void;
@@ -25,12 +31,14 @@ interface AuthState {
 }
 
 // The access token lives in memory only. The refresh token is an httpOnly cookie.
+// The session is restored on every page load through POST /api/auth/refresh, so a reload keeps the user signed in.
 export const useAuthStore = create<AuthState>()((set) => ({
   accessToken: null,
   user: null,
   ready: false,
-  setSession: (accessToken, user) => set({ accessToken, user }),
+  epoch: 0,
+  setSession: (accessToken, user) => set((s) => ({ accessToken, user, ready: true, epoch: s.epoch + 1 })),
   setUser: (user) => set({ user }),
-  clear: () => set({ accessToken: null, user: null }),
+  clear: () => set((s) => ({ accessToken: null, user: null, epoch: s.epoch + 1 })),
   setReady: () => set({ ready: true }),
 }));

@@ -111,3 +111,34 @@ def test_resend_verification_is_generic_and_never_reveals_accounts(client):
     b = client.post("/api/auth/resend-verification", json={"email": "rv@example.com"})
     assert a.status_code == b.status_code == 202
     assert a.json() == b.json() == {"status": "accepted", "email_delivery": "not_connected"}
+
+
+def test_login_token_is_accepted_by_me_and_protected_routes(client):
+    """Regression: the token issued by /login must be the one /me and protected routes accept."""
+    import jwt
+
+    from app.config import get_settings
+
+    register_user(client, "stay@example.com")
+    r = client.post("/api/auth/login", json={"email": "stay@example.com", "password": PASSWORD, "remember": True})
+    assert r.status_code == 200
+    token = r.json()["access_token"]
+    claims = jwt.decode(token, get_settings().jwt_secret, algorithms=["HS256"])
+    assert isinstance(claims["sub"], str)
+    assert claims["exp"] - claims["iat"] == get_settings().access_token_minutes * 60
+    assert 30 <= get_settings().access_token_minutes <= 60
+    assert client.get("/api/auth/me", headers=auth_header(token)).status_code == 200
+    assert client.get("/api/projects", headers=auth_header(token)).status_code == 200
+    assert client.get("/api/ai/jobs", headers=auth_header(token)).status_code == 200
+
+
+def test_refresh_cookie_restores_session_after_reload(client):
+    """A page reload has no access token in memory; the refresh cookie must bring the session back."""
+    register_user(client, "reload@example.com")
+    r = client.post("/api/auth/login", json={"email": "reload@example.com", "password": PASSWORD, "remember": True})
+    assert r.status_code == 200
+    refreshed = client.post("/api/auth/refresh")
+    assert refreshed.status_code == 200
+    token = refreshed.json()["access_token"]
+    assert client.get("/api/auth/me", headers=auth_header(token)).json()["email"] == "reload@example.com"
+    assert "samesite=lax" in refreshed.headers.get("set-cookie", "").lower()
