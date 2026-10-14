@@ -1,0 +1,19 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r backend/requirements.txt && python -c "import sys; sys.path.insert(0,'backend'); import app.main"
+      - run: npm ci --prefix frontend && npm run build --prefix frontend
+      - run: npm install && npx playwright install --with-deps chromium
+      - name: E2E gate
+        run: |
+          (cd backend && DEV_AUTO_VERIFY=true ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=AdminPass123 python -m uvicorn app.main:app --port 8000 &)
+          npm run preview --prefix frontend &
+          sleep 5 && npx playwright test

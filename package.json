@@ -1,0 +1,1 @@
+{"name":"zyvora","private":true,"scripts":{"test:e2e":"playwright test"},"devDependencies":{"@playwright/test":"^1.49.0","@sparticuz/chromium":"^153.0.0","puppeteer-core":"^25.13.0"}}

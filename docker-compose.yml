@@ -1,0 +1,7 @@
+services:
+  db: {image: "postgres:16-alpine", environment: {POSTGRES_DB: zyvora, POSTGRES_USER: zyvora, POSTGRES_PASSWORD: zyvora}, volumes: ["pgdata:/var/lib/postgresql/data"], healthcheck: {test: ["CMD-SHELL","pg_isready -U zyvora"], interval: 5s, timeout: 3s, retries: 10}}
+  redis: {image: "redis:7-alpine"}
+  minio: {image: "minio/minio:latest", command: "server /data --console-address :9001", environment: {MINIO_ROOT_USER: zyvora, MINIO_ROOT_PASSWORD: zyvora-secret}, volumes: ["miniodata:/data"], ports: ["9001:9001"]}
+  api: {build: ./backend, env_file: .env, environment: {DATABASE_URL: "postgresql://zyvora:zyvora@db:5432/zyvora", REDIS_URL: "redis://redis:6379/0"}, depends_on: {db: {condition: service_healthy}}, ports: ["8000:8000"]}
+  web: {build: ./frontend, depends_on: [api], ports: ["5173:80"]}
+volumes: {pgdata: {}, miniodata: {}}
