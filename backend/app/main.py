@@ -23,7 +23,9 @@ import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
-SECRET=os.getenv("SECRET_KEY","zyvora-dev-secret-key-change-in-production-42")
+SECRET=os.getenv("SECRET_KEY","")
+if len(SECRET)<16:
+    raise RuntimeError("SECRET_KEY is missing or too short. Set a long, stable SECRET_KEY in .env (it must NOT change between restarts, or all sessions die). Refusing to start.")
 DATABASE_URL=os.getenv("DATABASE_URL","sqlite:///./zyvora.db")
 DEV_AUTO_VERIFY=os.getenv("DEV_AUTO_VERIFY","true").lower()=="true"
 ACCESS_MINUTES=int(os.getenv("ACCESS_TOKEN_MINUTES","30"))
@@ -36,7 +38,7 @@ def now(): return datetime.now(timezone.utc)
 class User(Base):
  __tablename__="users"; id=Column(String,primary_key=True,default=lambda:str(uuid.uuid4())); email=Column(String,unique=True,index=True); name=Column(String); password_hash=Column(String); role=Column(String,default="user"); plan=Column(String,default="free"); is_blocked=Column(Boolean,default=False); email_verified=Column(Boolean,default=False); verify_token=Column(String,nullable=True); reset_token=Column(String,nullable=True); created_at=Column(DateTime,default=now)
 class RefreshSession(Base):
- __tablename__="refresh_sessions"; id=Column(String,primary_key=True,default=lambda:str(uuid.uuid4())); user_id=Column(String,ForeignKey("users.id"),index=True); token_hash=Column(String,index=True); revoked=Column(Boolean,default=False); user_agent=Column(String,default=""); created_at=Column(DateTime,default=now); expires_at=Column(DateTime)
+ __tablename__="refresh_sessions"; id=Column(String,primary_key=True,default=lambda:str(uuid.uuid4())); user_id=Column(String,ForeignKey("users.id"),index=True); token_hash=Column(String,index=True); prev_token_hash=Column(String,nullable=True); prev_grace_until=Column(DateTime,nullable=True); revoked=Column(Boolean,default=False); user_agent=Column(String,default=""); created_at=Column(DateTime,default=now); expires_at=Column(DateTime)
 class Project(Base):
  __tablename__="projects"; id=Column(String,primary_key=True,default=lambda:str(uuid.uuid4())); owner_id=Column(String,ForeignKey("users.id"),index=True); name=Column(String); folder=Column(String,default=""); document=Column(Text,default="{}"); version=Column(Integer,default=1); created_at=Column(DateTime,default=now); updated_at=Column(DateTime,default=now,onupdate=now)
 class Asset(Base):
@@ -54,6 +56,15 @@ class PaymentEvent(Base):
 class Comment(Base):
  __tablename__="comments"; id=Column(String,primary_key=True,default=lambda:str(uuid.uuid4())); project_id=Column(String,index=True); user_id=Column(String); body=Column(Text); created_at=Column(DateTime,default=now)
 Base.metadata.create_all(engine)
+# Lightweight additive migration for existing DBs (grace-window columns).
+try:
+    from sqlalchemy import inspect as _insp, text as _text
+    _cols=[c["name"] for c in _insp(engine).get_columns("refresh_sessions")]
+    with engine.begin() as _conn:
+        if "prev_token_hash" not in _cols: _conn.execute(_text("ALTER TABLE refresh_sessions ADD COLUMN prev_token_hash VARCHAR"))
+        if "prev_grace_until" not in _cols: _conn.execute(_text("ALTER TABLE refresh_sessions ADD COLUMN prev_grace_until TIMESTAMP"))
+except Exception as _e:
+    print(f"[ZYVORA] refresh_sessions migration warning: {_e}", flush=True)
 
 def db():
  d=SessionLocal()
@@ -138,12 +149,24 @@ def login(body:AuthIn,request:Request,response:Response,d:Session=Depends(db)):
 def refresh(request:Request,response:Response,d:Session=Depends(db)):
  raw=request.cookies.get("zyvora_refresh")
  if not raw: raise HTTPException(401,"No refresh session")
- s=d.query(RefreshSession).filter_by(token_hash=hash_token(raw),revoked=False).first()
- if not s or (s.expires_at and s.expires_at.replace(tzinfo=timezone.utc)<now()): raise HTTPException(401,"Refresh session expired")
- u=d.get(User,s.user_id)
- if not u or u.is_blocked: raise HTTPException(401,"User not available")
- s.revoked=True; d.commit(); set_refresh(d,u,response,request)
- return {"user":user_out(u),"access_token":make_access(u)}
+ h=hash_token(raw)
+ s=d.query(RefreshSession).filter_by(token_hash=h,revoked=False).first()
+ if s and (not s.expires_at or s.expires_at.replace(tzinfo=timezone.utc)>=now()):
+  u=d.get(User,s.user_id)
+  if not u or u.is_blocked: raise HTTPException(401,"User not available")
+  # Rotate: current token becomes the "previous" token, valid for a 15s grace window,
+  # so a concurrent refresh carrying the pre-rotation cookie does NOT get a 401.
+  s.prev_token_hash=h; s.prev_grace_until=now()+timedelta(seconds=15); d.commit()
+  set_refresh(d,u,response,request)
+  return {"user":user_out(u),"access_token":make_access(u)}
+ # Grace path: pre-rotation token presented within its window -> issue a fresh independent session.
+ s=d.query(RefreshSession).filter_by(prev_token_hash=h,revoked=False).first()
+ if s and s.prev_grace_until and s.prev_grace_until.replace(tzinfo=timezone.utc)>=now():
+  u=d.get(User,s.user_id)
+  if not u or u.is_blocked: raise HTTPException(401,"User not available")
+  set_refresh(d,u,response,request)
+  return {"user":user_out(u),"access_token":make_access(u),"grace":True}
+ raise HTTPException(401,"Refresh session expired")
 
 @app.post("/api/auth/logout")
 def logout(request:Request,response:Response,d:Session=Depends(db)):

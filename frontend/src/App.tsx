@@ -2,7 +2,7 @@ import React,{useEffect,useState} from 'react';
 import {BrowserRouter,Routes,Route,Navigate,useNavigate,useLocation,Link} from 'react-router-dom';
 import {useTranslation} from 'react-i18next';
 import {LayoutDashboard,FolderKanban,Sparkles,Library,Brush,Box,UserRound,Clapperboard,Film,Wand2,AudioLines,BookOpen,ListVideo,Store,Users,Settings,Shield,Undo2,Redo2,Menu,Bot,X,Check} from 'lucide-react';
-import {api,bootstrapAuth,loginSuccess,serverError} from './api'; import {useAuth,useProject,emptyDoc,uid} from './store'; import {Logo,LangSwitcher,Spinner} from './components';
+import {api,bootstrapAuth,loginSuccess,serverError,inIframe} from './api'; import {useAuth,useProject,emptyDoc,uid} from './store'; import {Logo,LangSwitcher,Spinner} from './components';
 import {Studio3D,Studio2D,StudioCharacter,StudioAnimation,StudioCinema,useAutosave} from './studios';
 
 function PasswordField({value,set,label,testid}:{value:string;set:(v:string)=>void;label:string;testid?:string}){
@@ -99,7 +99,8 @@ function Landing(){const {t}=useTranslation();const cards:any=[['2D Studio',Brus
 export default function App(){
  const [booted,setBooted]=useState(false);
  useEffect(()=>{const th=localStorage.getItem('zyvora_theme');if(th)document.documentElement.dataset.theme=th;bootstrapAuth().finally(()=>setBooted(true))},[]);
- return <BrowserRouter><Routes>
+ const {cookieWarning,setCookieWarning,status}=useAuth();
+ return <BrowserRouter>{(cookieWarning||(inIframe()&&status==='guest'&&!!localStorage.getItem('zyvora_session_hint')))&&<div role="alert" data-testid="cookie-banner" style={{position:'fixed',top:0,left:0,right:0,zIndex:999,background:'var(--warning)',color:'#1A1400',padding:'10px 16px',display:'flex',gap:12,alignItems:'center',justifyContent:'center',flexWrap:'wrap'}}><span>🍪 <b>Open in a new tab to stay signed in</b> — this embedded preview blocks the sign-in cookie, so sessions can't persist here.</span><button className="btn" onClick={()=>window.open(window.location.href,'_blank')}>Open in a new tab</button><button className="btn-ghost" onClick={()=>setCookieWarning(false)}>Dismiss</button></div>}<Routes>
  <Route path="/" element={<Landing/>}/><Route path="/register" element={<GuestOnly><Register/></GuestOnly>}/><Route path="/login" element={<GuestOnly><Login/></GuestOnly>}/>
  <Route path="/check-email" element={<SimpleAuth kind="check-email"/>}/><Route path="/forgot-password" element={<SimpleAuth kind="forgot"/>}/><Route path="/reset-password" element={<SimpleAuth kind="reset"/>}/><Route path="/verify-email" element={<Verify/>}/><Route path="/email-verified" element={<SimpleAuth kind="verified"/>}/>
  <Route path="/dashboard" element={<Guard><Shell/></Guard>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes></BrowserRouter>

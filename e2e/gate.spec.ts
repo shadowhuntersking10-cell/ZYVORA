@@ -14,15 +14,27 @@ test('Phase 0+1 gate: register->dashboard, persistence, nav, logout, login, gues
  page.on('response',r=>{if(r.url().includes('/api/auth'))authLog.push(`${r.request().method()} ${new URL(r.url()).pathname} -> ${r.status()}`)});
  page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text())});
  const email=`gate-${uniq()}@example.com`;
+ test.setTimeout(240000);
  await register(page,email);
  await expect(page).toHaveURL(/\/dashboard/,{timeout:15000});
  await page.waitForTimeout(5000); await expect(page).toHaveURL(/\/dashboard/);
+ await page.waitForTimeout(60000); await expect(page).toHaveURL(/\/dashboard/); await expect(page.getByTestId('nav-projects')).toBeVisible();
  await page.reload(); await expect(page.getByTestId('nav-projects')).toBeVisible({timeout:15000}); await expect(page).toHaveURL(/\/dashboard/);
  for(const id of ['nav-projects','nav-assets','nav-settings']){await page.getByTestId(id).click(); await page.waitForTimeout(400); await expect(page).toHaveURL(/\/dashboard/)}
  await page.getByTestId('logout-btn').click(); await expect(page).toHaveURL(/\/login/);
  await page.getByTestId('login-email').fill(email); await page.getByTestId('login-password').fill('Password123'); await page.getByTestId('login-submit').click();
  await expect(page).toHaveURL(/\/dashboard/,{timeout:15000});
  console.log('AUTH LOG:\n'+authLog.join('\n'));
+});
+test('concurrent refresh with same pre-rotation cookie both succeed (grace window)',async({request})=>{
+ const email=`race-${uniq()}@example.com`;
+ const r=await request.post('http://localhost:8000/api/auth/register',{data:{name:'Race',email,password:'Password123'}}); expect(r.status()).toBe(200);
+ const setCookie=(await r.headersArray()).find(h=>h.name.toLowerCase()==='set-cookie')!.value;
+ const token=setCookie.split(';')[0].split('=')[1];
+ const [a,b]=await Promise.all([
+   request.post('http://localhost:8000/api/auth/refresh',{headers:{Cookie:`zyvora_refresh=${token}`}}),
+   request.post('http://localhost:8000/api/auth/refresh',{headers:{Cookie:`zyvora_refresh=${token}`}})]);
+ expect(a.status()).toBe(200); expect(b.status()).toBe(200);
 });
 test('guest opening / sees the Landing page, not the login form',async({page})=>{
  await page.goto('/');

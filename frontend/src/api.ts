@@ -3,9 +3,11 @@ export const api=axios.create({baseURL:'',withCredentials:true});
 let refreshPromise:Promise<string>|null=null;
 api.interceptors.request.use(c=>{const t=useAuth.getState().token;if(t)c.headers.Authorization=`Bearer ${t}`;return c});
 async function doRefresh():Promise<string>{
+ // ONE shared in-flight refresh for the whole tab (bootstrap + interceptor alike).
  if(!refreshPromise){refreshPromise=axios.post('/api/auth/refresh',{},{withCredentials:true}).then(r=>{useAuth.getState().setSession(r.data.access_token,r.data.user);return r.data.access_token as string}).finally(()=>{refreshPromise=null})}
  return refreshPromise;
 }
+export function inIframe():boolean{try{return window.self!==window.top}catch{return true}}
 api.interceptors.response.use(r=>r,async err=>{
  const cfg=err.config;
  if(err.response?.status!==401||!cfg||cfg._retried||String(cfg.url||'').includes('/api/auth/'))return Promise.reject(err);
@@ -19,10 +21,11 @@ async function bootstrapAuthInner(){
  const st=useAuth.getState();
  if(!localStorage.getItem('zyvora_session_hint')){st.setGuest();return}
  const version=st.sessionVersion; const ctrl=new AbortController(); (window as any).__zyvoraAbort=ctrl;
- try{const r=await axios.post('/api/auth/refresh',{},{withCredentials:true,signal:ctrl.signal});
-  if(useAuth.getState().sessionVersion!==version)return; // stale response must not overwrite newer login
-  useAuth.getState().setSession(r.data.access_token,r.data.user);
- }catch{ if(useAuth.getState().sessionVersion===version){localStorage.removeItem('zyvora_session_hint');useAuth.getState().setGuest()} }
+ try{await doRefresh(); // shared single-flight; setSession happens inside, version bump makes stale checks below authoritative
+  if(useAuth.getState().sessionVersion===version){/* doRefresh already replaced the session */}
+ }catch{ if(useAuth.getState().sessionVersion===version){localStorage.removeItem('zyvora_session_hint');useAuth.getState().setGuest();
+   // In an iframe (third-party cookies blocked) this is expected — warn loudly instead of silently logging out.
+   if(inIframe())useAuth.getState().setCookieWarning(true);} }
 }
 export function loginSuccess(data:any){localStorage.setItem('zyvora_session_hint','1');useAuth.getState().setSession(data.access_token,data.user)}
 /** Extract the REAL server error message (FastAPI: string detail, or array detail on 422) — never a generic string when the server said something. Logs the failing request. */

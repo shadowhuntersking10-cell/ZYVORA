@@ -19,9 +19,9 @@ export const useProject=create<ProjectState>((set,get)=>({
  markSaved:()=>set({dirty:false})
 }));
 export type SessionStatus='initializing'|'authenticated'|'guest';
-interface AuthState{status:SessionStatus;token:string|null;user:any|null;sessionVersion:number;setSession:(token:string,user:any)=>void;clear:()=>void;setGuest:()=>void}
+interface AuthState{status:SessionStatus;token:string|null;user:any|null;sessionVersion:number;cookieWarning:boolean;setCookieWarning:(v:boolean)=>void;setSession:(token:string,user:any)=>void;clear:()=>void;setGuest:()=>void}
 export const useAuth=create<AuthState>((set,get)=>({
- status:localStorage.getItem('zyvora_session_hint')?'initializing':'guest',token:null,user:null,sessionVersion:0,
+ status:localStorage.getItem('zyvora_session_hint')?'initializing':'guest',token:null,user:null,sessionVersion:0,cookieWarning:false,setCookieWarning:(v)=>set({cookieWarning:v}),
  setSession:(token,user)=>set({token,user,status:'authenticated',sessionVersion:get().sessionVersion+1}),
  clear:()=>{localStorage.removeItem('zyvora_session_hint');set({token:null,user:null,status:'guest',sessionVersion:get().sessionVersion+1})},
  setGuest:()=>set({status:'guest',token:null,user:null})
