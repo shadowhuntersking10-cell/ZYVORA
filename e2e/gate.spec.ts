@@ -30,8 +30,6 @@ test('guest /login produces no auth 401 and wrong login shows clear error',async
  await page.getByTestId('login-email').fill('nobody@example.com'); await page.getByTestId('login-password').fill('Password123'); await page.getByTestId('login-submit').click();
  await expect(page.getByRole('alert')).toContainText('Invalid email or password');
 });
-<<<<<<< HEAD
-=======
 test('register duplicate email shows REAL server error (not generic) and logs it',async({page})=>{
  const consoleLogs:string[]=[]; page.on('console',m=>consoleLogs.push(m.text()));
  const email=`dup-ui-${uniq()}@example.com`;
@@ -48,7 +46,6 @@ test('register duplicate email shows REAL server error (not generic) and logs it
  await expect(page).toHaveURL(/\/register/);
  expect(consoleLogs.some(l=>l.includes('[ZYVORA] POST /api/auth/register failed'))).toBeTruthy();
 });
->>>>>>> 1c29f63 (Fix register error reporting: real server messages (string + 422 array detail), console logging of failing auth requests, dark autofill override; add duplicate-email UI regression test)
 test('ownership + admin 403 + duplicate email error',async({request,page})=>{
  const e1=`a-${uniq()}@example.com`, e2=`b-${uniq()}@example.com`;
  const r1=await request.post('http://localhost:8000/api/auth/register',{data:{name:'User A',email:e1,password:'Password123'}}); expect(r1.status()).toBe(200);

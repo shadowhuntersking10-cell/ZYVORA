@@ -25,8 +25,6 @@ async function bootstrapAuthInner(){
  }catch{ if(useAuth.getState().sessionVersion===version){localStorage.removeItem('zyvora_session_hint');useAuth.getState().setGuest()} }
 }
 export function loginSuccess(data:any){localStorage.setItem('zyvora_session_hint','1');useAuth.getState().setSession(data.access_token,data.user)}
-<<<<<<< HEAD
-=======
 /** Extract the REAL server error message (FastAPI: string detail, or array detail on 422) — never a generic string when the server said something. Logs the failing request. */
 export function serverError(e:any,context:string,fallback:string):string{
  const status=e?.response?.status; const data=e?.response?.data;
@@ -38,4 +36,3 @@ export function serverError(e:any,context:string,fallback:string):string{
  if(typeof data==='string'&&data)return data.slice(0,300);
  return `${fallback} (HTTP ${status})`;
 }
->>>>>>> 1c29f63 (Fix register error reporting: real server messages (string + 422 array detail), console logging of failing auth requests, dark autofill override; add duplicate-email UI regression test)

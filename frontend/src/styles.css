@@ -7,11 +7,8 @@ h1,h2,h3,.font-display{font-family:"Space Grotesk",Inter,sans-serif}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--bg-raised);border-radius:8px}::-webkit-scrollbar-track{background:var(--bg)}
 input,select,textarea{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 12px;outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(77,163,255,.25)}
-<<<<<<< HEAD
-=======
 /* Autofill must stay dark (Chrome paints autofilled inputs pale yellow/white otherwise) */
 input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active{-webkit-text-fill-color:var(--text);caret-color:var(--text);-webkit-box-shadow:0 0 0 1000px var(--bg) inset;box-shadow:0 0 0 1000px var(--bg) inset;border-color:var(--border);transition:background-color 99999s ease-in-out 0s}
->>>>>>> 1c29f63 (Fix register error reporting: real server messages (string + 422 array detail), console logging of failing auth requests, dark autofill override; add duplicate-email UI regression test)
 button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
 .btn{background:var(--grad);color:#fff;border:0;border-radius:12px;padding:10px 18px;font-weight:600;box-shadow:0 4px 24px rgba(77,163,255,.35);transition:.2s}
 .btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 32px rgba(139,107,255,.45)}
