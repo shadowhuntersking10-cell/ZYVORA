@@ -21,6 +21,7 @@ from app.schemas import (
     ProfileIn,
     RegisterIn,
     RegisterOut,
+    ResendIn,
     ResetIn,
     SessionOut,
     TokenIn,
@@ -45,12 +46,13 @@ def _as_aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def _set_refresh_cookie(response: Response, token: str) -> None:
+def _set_refresh_cookie(response: Response, token: str, remember: bool = True) -> None:
     s = get_settings()
     response.set_cookie(
         REFRESH_COOKIE,
         token,
-        max_age=s.refresh_token_days * 86400,
+        # remember=False gives a browser-session cookie (gone when the browser closes).
+        max_age=s.refresh_token_days * 86400 if remember else None,
         httponly=True,
         secure=s.cookie_secure,
         samesite="strict",
@@ -62,7 +64,7 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(REFRESH_COOKIE, path=REFRESH_PATH)
 
 
-def _issue_session(db: Session, user: User, request: Request, response: Response) -> str:
+def _issue_session(db: Session, user: User, request: Request, response: Response, remember: bool = True) -> str:
     raw = new_opaque_token()
     ua, ip = client_meta(request)
     db.add(
@@ -71,10 +73,11 @@ def _issue_session(db: Session, user: User, request: Request, response: Response
             token_hash=hash_token(raw),
             user_agent=ua,
             ip=ip,
+            remember=remember,
             expires_at=utcnow() + timedelta(days=get_settings().refresh_token_days),
         )
     )
-    _set_refresh_cookie(response, raw)
+    _set_refresh_cookie(response, raw, remember)
     return create_access_token(user.id, user.role)
 
 
@@ -138,7 +141,7 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
     if not user.email_verified:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Email is not verified")
     user.last_login_at = utcnow()
-    access = _issue_session(db, user, request, response)
+    access = _issue_session(db, user, request, response, remember=body.remember)
     audit(db, "auth.login", actor_id=user.id, request=request)
     db.commit()
     return AuthOut(access_token=access, user=UserOut.model_validate(user))
@@ -161,7 +164,7 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Account is blocked")
     # Rotation: the old refresh token is revoked and a new one is issued.
     sess.revoked = True
-    access = _issue_session(db, user, request, response)
+    access = _issue_session(db, user, request, response, remember=sess.remember)
     db.commit()
     return AuthOut(access_token=access, user=UserOut.model_validate(user))
 
@@ -256,6 +259,21 @@ def delete_account(body: DeleteAccountIn, request: Request, response: Response,
     db.commit()
     _clear_refresh_cookie(response)
     return Response(status_code=204)
+
+
+@router.post("/resend-verification", status_code=202, dependencies=[Depends(rate_limit("resend"))])
+def resend_verification(body: ResendIn, request: Request, db: Session = Depends(get_db)):
+    """Always 202 so the response does not reveal which emails exist."""
+    user = db.scalar(select(User).where(User.email == body.email.lower()))
+    delivery = "not_connected"
+    if user is not None and not user.email_verified and get_settings().require_email_verification:
+        raw = _issue_one_time(db, user, "verify_email", 48)
+        link = f"{get_settings().frontend_url}/verify-email?token={raw}"
+        if send_email(user.email, "Verify your ZYVORA account", f"Verify: {link}"):
+            delivery = "sent"
+        audit(db, "auth.verification_resent", actor_id=user.id, request=request)
+        db.commit()
+    return {"status": "accepted", "email_delivery": delivery}
 
 
 @router.post("/forgot", status_code=202, dependencies=[Depends(rate_limit("forgot"))])

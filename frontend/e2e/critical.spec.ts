@@ -6,9 +6,9 @@ import { expect, test } from '@playwright/test';
 test('register, open a project, add an object, undo', async ({ page }) => {
   const email = `e2e-${Date.now()}@example.com`;
   await page.goto('/register');
-  await page.getByLabel('Name').fill('E2E User');
+  await page.getByLabel('Full name').fill('E2E User');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill('Passw0rd-E2E-1');
+  await page.getByLabel('Password', { exact: true }).fill('Passw0rd-E2E-1');
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/app\/dashboard/);
 
@@ -27,7 +27,7 @@ test('non-admin is forbidden from the admin panel', async ({ page }) => {
   await page.request.post('/api/auth/register', { data: { name: 'Plain', email, password: 'Passw0rd-E2E-2' } });
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill('Passw0rd-E2E-2');
+  await page.getByLabel('Password', { exact: true }).fill('Passw0rd-E2E-2');
   await page.getByRole('button', { name: 'Log in' }).click();
   await expect(page).toHaveURL(/\/app\/dashboard/);
   await page.goto('/app/admin');

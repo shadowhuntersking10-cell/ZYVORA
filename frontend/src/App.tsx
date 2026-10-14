@@ -9,8 +9,9 @@ import { applyTheme, usePrefsStore } from './store/prefs';
 import { useAuthStore } from './store/auth';
 import { installHistoryShortcuts, installUnloadFlush } from './store/project';
 import {
-  ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage, VerifyEmailPage,
-} from './pages/auth/AuthPages';
+  CheckEmailPage, ForgotPasswordPage, LegalPage, LoginPage, RegisterPage, ResetPasswordPage, VerifyEmailPage,
+} from './pages/public/AuthPages';
+import { LandingPage } from './pages/public/LandingPage';
 import {
   ComingSoonPage, DashboardPage, ProjectsPage, RenderQueuePage, SettingsPage, StudioGatePage,
 } from './pages/AppPages';
@@ -44,9 +45,15 @@ function NotFound() {
 export default function App(): ReactElement {
   const theme = usePrefsStore((s) => s.theme);
 
+  const lang = usePrefsStore((s) => s.lang);
+
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   useEffect(() => {
     let alive = true;
@@ -67,9 +74,12 @@ export default function App(): ReactElement {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/check-email" element={<CheckEmailPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/terms" element={<LegalPage kind="terms" />} />
+        <Route path="/privacy" element={<LegalPage kind="privacy" />} />
 
         <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
           <Route index element={<Navigate to="dashboard" replace />} />
@@ -97,11 +107,20 @@ export default function App(): ReactElement {
           <Route path="*" element={<NotFound />} />
         </Route>
 
-        <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
+        <Route path="/" element={<HomeRoute />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   );
+}
+
+/** Guests see the landing page; signed-in users go straight to the dashboard. */
+function HomeRoute() {
+  const ready = useAuthStore((s) => s.ready);
+  const user = useAuthStore((s) => s.user);
+  if (!ready) return <Spinner />;
+  if (user) return <Navigate to="/app/dashboard" replace />;
+  return <LandingPage />;
 }
 
 function StudioGateRoute() {

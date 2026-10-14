@@ -86,3 +86,28 @@ def test_delete_account_requires_password(client):
     assert client.post("/api/auth/me/delete", headers=auth_header(token),
                        json={"password": PASSWORD}).status_code == 204
     assert client.get("/api/auth/me", headers=auth_header(token)).status_code == 401
+
+
+def test_password_policy_requires_upper_lower_and_digit(client):
+    for bad in ["alllowercase1", "ALLUPPERCASE1", "NoDigitsHere"]:
+        r = client.post("/api/auth/register", json={"name": "x", "email": f"p{len(bad)}@example.com", "password": bad})
+        assert r.status_code == 422, bad
+    ok = client.post("/api/auth/register", json={"name": "x", "email": "okpolicy@example.com", "password": "Abcdef12"})
+    assert ok.status_code == 201
+
+
+def test_remember_me_off_gives_session_cookie(client):
+    register_user(client, "rem@example.com")
+    r = client.post("/api/auth/login", json={"email": "rem@example.com", "password": PASSWORD, "remember": False})
+    assert r.status_code == 200
+    assert "max-age" not in r.headers["set-cookie"].lower()
+    r = client.post("/api/auth/login", json={"email": "rem@example.com", "password": PASSWORD, "remember": True})
+    assert "max-age" in r.headers["set-cookie"].lower()
+
+
+def test_resend_verification_is_generic_and_never_reveals_accounts(client):
+    a = client.post("/api/auth/resend-verification", json={"email": "nobody@example.com"})
+    register_user(client, "rv@example.com")
+    b = client.post("/api/auth/resend-verification", json={"email": "rv@example.com"})
+    assert a.status_code == b.status_code == 202
+    assert a.json() == b.json() == {"status": "accepted", "email_delivery": "not_connected"}

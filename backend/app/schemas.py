@@ -3,15 +3,17 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-PASSWORD_MIN = 10
+PASSWORD_MIN = 8
 PASSWORD_MAX = 128
 
 
 def _check_password(value: str) -> str:
     if len(value) < PASSWORD_MIN or len(value) > PASSWORD_MAX:
         raise ValueError(f"password must be {PASSWORD_MIN}-{PASSWORD_MAX} characters")
-    if not any(c.isalpha() for c in value) or not any(c.isdigit() for c in value):
-        raise ValueError("password must contain letters and digits")
+    if not any(c.islower() for c in value) or not any(c.isupper() for c in value):
+        raise ValueError("password must contain upper and lower case letters")
+    if not any(c.isdigit() for c in value):
+        raise ValueError("password must contain a digit")
     return value
 
 
@@ -29,9 +31,14 @@ class RegisterIn(BaseModel):
 class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(max_length=PASSWORD_MAX)
+    remember: bool = True
 
 
 class EmailIn(BaseModel):
+    email: EmailStr
+
+
+class ResendIn(BaseModel):
     email: EmailStr
 
 

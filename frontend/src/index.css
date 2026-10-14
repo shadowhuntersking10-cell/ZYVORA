@@ -47,3 +47,47 @@
   }
   .label { @apply mb-1 block text-xs font-medium uppercase tracking-wide text-muted; }
 }
+
+/* ---------- Public pages (landing + auth) ---------- */
+@layer components {
+  .zv-glow {
+    background:
+      radial-gradient(60% 50% at 15% 10%, rgba(77,163,255,.28), transparent 70%),
+      radial-gradient(50% 45% at 85% 20%, rgba(139,107,255,.26), transparent 70%),
+      radial-gradient(55% 50% at 50% 100%, rgba(77,163,255,.14), transparent 70%);
+  }
+  .zv-grid {
+    background-image:
+      linear-gradient(rgba(154,164,199,.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(154,164,199,.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .zv-focus:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(77,163,255,.45);
+  }
+}
+
+@keyframes zv-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(3%, -2%, 0) scale(1.06); }
+}
+@keyframes zv-spin { to { transform: rotate(360deg); } }
+@keyframes zv-playhead { 0% { left: 4%; } 100% { left: 96%; } }
+@keyframes zv-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes zv-pop { 0% { transform: scale(.6); opacity: 0; } 70% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes zv-draw { to { stroke-dashoffset: 0; } }
+
+.zv-anim-drift { animation: zv-drift 18s ease-in-out infinite; will-change: transform; }
+.zv-anim-spin { animation: zv-spin 0.9s linear infinite; }
+.zv-anim-playhead { animation: zv-playhead 6s linear infinite; }
+.zv-anim-rise { animation: zv-rise 220ms ease-out both; }
+.zv-anim-pop { animation: zv-pop 420ms cubic-bezier(.2,.8,.2,1) both; }
+.zv-anim-draw { stroke-dasharray: 120; stroke-dashoffset: 120; animation: zv-draw 900ms ease-out 150ms forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .zv-anim-drift, .zv-anim-playhead, .zv-anim-rise, .zv-anim-pop { animation: none !important; }
+  .zv-anim-spin { animation-duration: 2.4s !important; }
+  .zv-anim-draw { animation: none !important; stroke-dashoffset: 0; }
+  *, *::before, *::after { transition-duration: 0ms !important; }
+}

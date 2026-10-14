@@ -187,9 +187,9 @@ Legend: **Working** = built and verified by tests or live calls here · **Partia
 | Unified workspace shell (sidebar, top bar, studio switching without reload) | Working | Built; UI not visually verified in a browser here |
 | Shared project store, typed commands, global undo/redo | Working | Unit tested |
 | Autosave with version history and conflict detection | Working | Live-tested through the proxy |
-| Auth: register, login, logout, refresh rotation, /me, profile | Working | |
+| Auth: register, login, logout, refresh rotation, /me, profile, remember-me | Working | Password: 8+ characters, upper and lower case, a digit |
 | Auth: change password, sessions, delete account | Working | |
-| Auth: email verification, forgot/reset password | Partially working | Tokens work; email delivery **Not connected** (no SMTP) |
+| Auth: email verification (+ resend), forgot/reset password | Partially working | Tokens work; email delivery **Not connected** (no SMTP), so the pages say so honestly |
 | Profile photo upload | Partially working | Avatar is a URL field only; no file upload (no storage) |
 | Notifications and privacy settings | Coming soon | |
 | My Projects: search, folders, rename, duplicate, delete | Working | |
