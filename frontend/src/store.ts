@@ -23,6 +23,6 @@ interface AuthState{status:SessionStatus;token:string|null;user:any|null;session
 export const useAuth=create<AuthState>((set,get)=>({
  status:localStorage.getItem('zyvora_session_hint')?'initializing':'guest',token:null,user:null,sessionVersion:0,cookieWarning:false,setCookieWarning:(v)=>set({cookieWarning:v}),
  setSession:(token,user)=>set({token,user,status:'authenticated',sessionVersion:get().sessionVersion+1}),
- clear:()=>{localStorage.removeItem('zyvora_session_hint');set({token:null,user:null,status:'guest',sessionVersion:get().sessionVersion+1})},
+ clear:()=>{localStorage.removeItem('zyvora_session_hint');sessionStorage.removeItem('zyvora_session_token');set({token:null,user:null,status:'guest',sessionVersion:get().sessionVersion+1})},
  setGuest:()=>set({status:'guest',token:null,user:null})
 }));

@@ -36,6 +36,17 @@ test('concurrent session-check refresh with same session cookie both succeed (no
    request.post('http://localhost:8000/api/auth/refresh',{headers:{Cookie:`zyvora_session=${token}`}})]);
  expect(a.status()).toBe(200); expect(b.status()).toBe(200);
 });
+test('cookie-blocked preview (iframe): session survives F5 via session-token fallback',async({page,context})=>{
+ const email=`ncb-${uniq()}@example.com`;
+ await register(page,email); await expect(page).toHaveURL(/\/dashboard/,{timeout:15000});
+ expect(await page.evaluate(()=>!!sessionStorage.getItem('zyvora_session_token'))).toBeTruthy();
+ await context.clearCookies(); // simulate third-party cookie blocking in an embedded preview
+ await page.reload();
+ await expect(page.getByTestId('nav-projects')).toBeVisible({timeout:20000});
+ await expect(page).toHaveURL(/\/dashboard/);
+ await page.getByTestId('nav-projects').click(); await page.getByTestId('nav-assets').click(); await page.getByTestId('nav-settings').click();
+ await expect(page).toHaveURL(/\/dashboard/);
+});
 test('guest opening / sees the Landing page, not the login form',async({page})=>{
  await page.goto('/');
  await expect(page.getByTestId('hero-get-started')).toBeVisible({timeout:15000});

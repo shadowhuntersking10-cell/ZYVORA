@@ -2,9 +2,10 @@ import axios from 'axios'; import {useAuth} from './store';
 export const api=axios.create({baseURL:'',withCredentials:true});
 let refreshPromise:Promise<string>|null=null;
 // Auth is ONE httpOnly session cookie (zyvora_session, Path=/api) sent automatically withCredentials — no Authorization header, no tokens in JS.
+api.interceptors.request.use(c=>{const t=sessionStorage.getItem('zyvora_session_token');if(t)c.headers.Authorization=`Bearer ${t}`;return c});
 async function doRefresh():Promise<string>{
  // ONE shared in-flight refresh for the whole tab (bootstrap + interceptor alike).
- if(!refreshPromise){refreshPromise=axios.post('/api/auth/refresh',{},{withCredentials:true}).then(r=>{useAuth.getState().setSession('session',r.data.user);return 'session'}).finally(()=>{refreshPromise=null})}
+ if(!refreshPromise){refreshPromise=api.post('/api/auth/refresh',{},{withCredentials:true}).then(r=>{useAuth.getState().setSession('session',r.data.user);return 'session'}).finally(()=>{refreshPromise=null})}
  return refreshPromise;
 }
 export function inIframe():boolean{try{return window.self!==window.top}catch{return true}}
@@ -27,7 +28,7 @@ async function bootstrapAuthInner(){
    // In an iframe (third-party cookies blocked) this is expected — warn loudly instead of silently logging out.
    if(inIframe())useAuth.getState().setCookieWarning(true);} }
 }
-export function loginSuccess(data:any){localStorage.setItem('zyvora_session_hint','1');useAuth.getState().setSession('session',data.user)} // hint + session set BEFORE navigation
+export function loginSuccess(data:any){if(data.session_token)sessionStorage.setItem('zyvora_session_token',data.session_token);localStorage.setItem('zyvora_session_hint','1');useAuth.getState().setSession('session',data.user)} // hint + session set BEFORE navigation
 /** Extract the REAL server error message (FastAPI: string detail, or array detail on 422) — never a generic string when the server said something. Logs the failing request. */
 export function serverError(e:any,context:string,fallback:string):string{
  const status=e?.response?.status; const data=e?.response?.data;

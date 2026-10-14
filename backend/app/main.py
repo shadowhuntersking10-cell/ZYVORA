@@ -79,9 +79,15 @@ def create_session(d,u,response,request):
  d.add(WebSession(user_id=u.id,token_hash=hash_token(raw),user_agent=request.headers.get("user-agent","")[:250],expires_at=now()+timedelta(days=SESSION_DAYS))); d.commit()
  response.set_cookie(SESSION_COOKIE,raw,httponly=True,samesite="lax",secure=os.getenv("COOKIE_SECURE","false").lower()=="true",path="/api",max_age=SESSION_DAYS*86400)
  return raw
-def session_user(request:Request,d:Session):
+def raw_session_token(request:Request):
  raw=request.cookies.get(SESSION_COOKIE)
- if not raw: log.info("auth: no session cookie on %s", request.url.path); return None
+ if not raw:
+  auth=request.headers.get("authorization","")
+  if auth.lower().startswith("bearer "): raw=auth[7:].strip()  # session-token fallback (iframe cookie-blocked previews)
+ return raw
+def session_user(request:Request,d:Session):
+ raw=raw_session_token(request)
+ if not raw: log.info("auth: no session cookie/token on %s", request.url.path); return None
  s=d.query(WebSession).filter_by(token_hash=hash_token(raw),revoked=False).first()
  if not s: log.info("auth: session cookie not found in DB (stale) on %s", request.url.path); return None
  if s.expires_at and s.expires_at.replace(tzinfo=timezone.utc)<now(): log.info("auth: session expired on %s", request.url.path); return None
@@ -143,7 +149,8 @@ def register(body:RegisterIn,request:Request,response:Response,d:Session=Depends
  d.add(u); d.commit(); d.refresh(u); d.add(CreditAccount(user_id=u.id)); d.add(CreditLedger(user_id=u.id,amount=100,reason="Welcome credits",balance_after=100)); d.commit()
  audit(d,u.id,"auth.register",u.email,request.client.host)
  print(f"[ZYVORA] verify link: /verify-email?token={u.verify_token} for {u.email}",flush=True)
- if DEV_AUTO_VERIFY: create_session(d,u,response,request); return {"user":user_out(u),"email_verified":True}
+ if DEV_AUTO_VERIFY:
+  _tok=create_session(d,u,response,request); return {"user":user_out(u),"email_verified":True,"session_token":_tok}
  return {"user":user_out(u),"email_verified":False,"message":"Check your email to verify your account"}
 
 @app.post("/api/auth/login")
@@ -154,21 +161,21 @@ def login(body:LoginIn,request:Request,response:Response,d:Session=Depends(db)):
  except Exception: raise HTTPException(401,"Invalid email or password")
  if u.is_blocked: raise HTTPException(403,"Account blocked")
  if not u.email_verified and not DEV_AUTO_VERIFY: raise HTTPException(403,"Please verify your email first")
- create_session(d,u,response,request); audit(d,u.id,"auth.login",u.email,request.client.host)
- return {"user":user_out(u)}
+ _tok=create_session(d,u,response,request); audit(d,u.id,"auth.login",u.email,request.client.host)
+ return {"user":user_out(u),"session_token":_tok}
 
 @app.post("/api/auth/refresh")
 def refresh(request:Request,response:Response,d:Session=Depends(db)):
  """Session check (route name kept for frontend compatibility): validates the httpOnly session cookie and slides expiry. No rotation, no race."""
  u=session_user(request,d)
  if not u or u.is_blocked: raise HTTPException(401,"No active session")
- raw=request.cookies.get(SESSION_COOKIE); sess=d.query(WebSession).filter_by(token_hash=hash_token(raw)).first()
+ raw=raw_session_token(request); sess=d.query(WebSession).filter_by(token_hash=hash_token(raw)).first() if raw else None
  if sess: sess.expires_at=now()+timedelta(days=SESSION_DAYS); d.commit()
  return {"user":user_out(u)}
 
 @app.post("/api/auth/logout")
 def logout(request:Request,response:Response,d:Session=Depends(db)):
- raw=request.cookies.get(SESSION_COOKIE)
+ raw=raw_session_token(request)
  if raw:
   sess=d.query(WebSession).filter_by(token_hash=hash_token(raw)).first()
   if sess: sess.revoked=True; d.commit()
