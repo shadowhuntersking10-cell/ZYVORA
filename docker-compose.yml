@@ -1,0 +1,57 @@
+# ZYVORA full stack. Only nginx (web) is published to the host.
+# Usage: cp .env.example .env && docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: zyvora
+      POSTGRES_PASSWORD: zyvora
+      POSTGRES_DB: zyvora
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zyvora -d zyvora"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    # Provisioned for the planned background queue. The API does not use it yet.
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  minio:
+    # Provisioned for S3-compatible file storage. The API does not upload files yet.
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: zyvora
+      MINIO_ROOT_PASSWORD: zyvora-minio-secret
+    volumes:
+      - miniodata:/data
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://zyvora:zyvora@db:5432/zyvora
+      ENVIRONMENT: production
+      COOKIE_SECURE: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:

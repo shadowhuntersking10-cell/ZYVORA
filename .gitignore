@@ -1,0 +1,27 @@
+# dependencies and build output
+node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# local data and secrets
+*.db
+*.sqlite3
+.env
+.env.*
+!.env.example
+backend/uploads/
+backend/media/
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# build caches
+*.tsbuildinfo
