@@ -21,10 +21,10 @@ import {
 } from './pages/admin/AdminPages';
 
 function RequireAuth({ children }: { children: ReactElement }) {
-  const ready = useAuthStore((s) => s.ready);
+  const isInitialized = useAuthStore((s) => s.isInitialized);
   const user = useAuthStore((s) => s.user);
   const location = useLocation();
-  if (!ready) return <Spinner />;
+  if (!isInitialized) return <Spinner />;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return children;
 }
@@ -116,9 +116,9 @@ export default function App(): ReactElement {
 
 /** Guests see the landing page; signed-in users go straight to the dashboard. */
 function HomeRoute() {
-  const ready = useAuthStore((s) => s.ready);
+  const isInitialized = useAuthStore((s) => s.isInitialized);
   const user = useAuthStore((s) => s.user);
-  if (!ready) return <Spinner />;
+  if (!isInitialized) return <Spinner />;
   if (user) return <Navigate to="/app/dashboard" replace />;
   return <LandingPage />;
 }

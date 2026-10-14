@@ -17,7 +17,7 @@ interface AuthState {
   accessToken: string | null;
   user: User | null;
   /** true once the initial session restore has finished (success or not), or a login succeeded. */
-  ready: boolean;
+  isInitialized: boolean;
   /**
    * Increments on every session change (login, refresh, logout).
    * Async work that started before a change compares this to detect that its result is stale,
@@ -35,10 +35,10 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()((set) => ({
   accessToken: null,
   user: null,
-  ready: false,
+  isInitialized: false,
   epoch: 0,
-  setSession: (accessToken, user) => set((s) => ({ accessToken, user, ready: true, epoch: s.epoch + 1 })),
+  setSession: (accessToken, user) => set((s) => ({ accessToken, user, isInitialized: true, epoch: s.epoch + 1 })),
   setUser: (user) => set({ user }),
   clear: () => set((s) => ({ accessToken: null, user: null, epoch: s.epoch + 1 })),
-  setReady: () => set({ ready: true }),
+  setReady: () => set({ isInitialized: true }),
 }));

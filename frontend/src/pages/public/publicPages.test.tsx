@@ -42,7 +42,7 @@ async function fillRegister(valid = true) {
 describe('public pages', () => {
   beforeEach(() => {
     usePrefsStore.setState({ lang: 'en' });
-    useAuthStore.setState({ accessToken: null, user: null, ready: true });
+    useAuthStore.setState({ accessToken: null, user: null, isInitialized: true });
   });
   afterEach(() => {
     cleanup();

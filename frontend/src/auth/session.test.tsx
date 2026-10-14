@@ -81,7 +81,7 @@ function fakeServer(opts: { refreshDelayMs?: number } = {}) {
 
 /** What a page reload does to memory: the access token and user are gone, the cookie stays. */
 function resetInMemoryState() {
-  useAuthStore.setState({ accessToken: null, user: null, ready: false });
+  useAuthStore.setState({ accessToken: null, user: null, isInitialized: false });
 }
 
 describe('session persistence', () => {

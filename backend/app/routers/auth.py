@@ -55,7 +55,7 @@ def _set_refresh_cookie(response: Response, token: str, remember: bool = True) -
         max_age=s.refresh_token_days * 86400 if remember else None,
         httponly=True,
         secure=s.cookie_secure,
-        samesite="lax",  # same-site app; Lax still blocks cross-site POSTs
+        samesite=s.cookie_samesite,
         path=REFRESH_PATH,
     )
 

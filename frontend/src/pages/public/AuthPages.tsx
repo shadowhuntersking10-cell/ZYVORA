@@ -136,7 +136,7 @@ export function LoginPage(): ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
-  const ready = useAuthStore((s) => s.ready);
+  const isInitialized = useAuthStore((s) => s.isInitialized);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
@@ -145,7 +145,7 @@ export function LoginPage(): ReactElement {
   const [busy, setBusy] = useState(false);
   const from = (location.state as { from?: string } | null)?.from;
 
-  if (ready && user) return <Navigate to={safeNext(from)} replace />;
+  if (isInitialized && user) return <Navigate to={safeNext(from)} replace />;
 
   const canSubmit = isValidEmail(email) && password.length > 0;
 

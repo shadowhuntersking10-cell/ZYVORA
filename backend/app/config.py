@@ -14,7 +14,10 @@ class Settings(BaseSettings):
     access_token_minutes: int = 30  # spec: 30-60 min; the client refreshes transparently
     refresh_token_days: int = 30
     cookie_secure: bool = False
-    cors_origins: str = "http://localhost:5173"
+    # Lax for same-site apps (default). Use "none" with COOKIE_SECURE=true only when the app is
+    # embedded cross-site (e.g. an iframe preview on another domain); browsers drop Lax cookies there.
+    cookie_samesite: str = "lax"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     require_email_verification: bool = False
     frontend_url: str = "http://localhost:5173"
 
