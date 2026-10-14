@@ -24,6 +24,13 @@ test('Phase 0+1 gate: register->dashboard, persistence, nav, logout, login, gues
  await expect(page).toHaveURL(/\/dashboard/,{timeout:15000});
  console.log('AUTH LOG:\n'+authLog.join('\n'));
 });
+test('guest opening / sees the Landing page, not the login form',async({page})=>{
+ await page.goto('/');
+ await expect(page.getByTestId('hero-get-started')).toBeVisible({timeout:15000});
+ await expect(page.getByTestId('login-password')).toHaveCount(0);
+ await expect(page.getByTestId('login-email')).toHaveCount(0);
+ await expect(page.locator('h1')).toContainText('Create anime, 3D and cinema in one place');
+});
 test('guest /login produces no auth 401 and wrong login shows clear error',async({page})=>{
  const bad:number[]=[]; page.on('response',r=>{if(r.url().includes('/api/auth')&&r.status()===401)bad.push(r.status())});
  await page.goto('/login'); await page.waitForTimeout(1500); expect(bad.length).toBe(0);

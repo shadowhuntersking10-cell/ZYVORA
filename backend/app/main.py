@@ -1,8 +1,20 @@
-import os, json, hashlib, secrets, time, threading, uuid
+import os, json, hashlib, secrets, time, threading, uuid, logging, traceback as _tb
+# Load .env (repo root / backend / cwd) WITHOUT overriding real environment variables.
+for _envpath in (os.path.join(os.getcwd(), ".env"), os.path.join(os.path.dirname(__file__), "..", "..", ".env"), os.path.join(os.path.dirname(__file__), "..", ".env")):
+    try:
+        with open(os.path.normpath(_envpath)) as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line and not _line.startswith("#") and "=" in _line:
+                    _k, _v = _line.split("=", 1); os.environ.setdefault(_k.strip(), _v.strip())
+        break
+    except FileNotFoundError:
+        continue
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from fastapi import FastAPI, Depends, HTTPException, Request, Response, Cookie
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Text, ForeignKey, Float
@@ -75,6 +87,14 @@ def rate(request:Request,limit=20,window=60):
  if _hits[key]>limit: raise HTTPException(429,"Too many requests. Try again later.")
 
 app=FastAPI(title="ZYVORA API")
+log = logging.getLogger("zyvora"); logging.basicConfig(level=logging.INFO)
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Log the FULL traceback server-side; return a clean JSON error (never an opaque HTML 500)."""
+    error_id = str(uuid.uuid4())[:8]
+    log.error("Unhandled exception [%s] %s %s\n%s", error_id, request.method, request.url.path, "".join(_tb.format_exception(type(exc), exc, exc.__traceback__)))
+    return JSONResponse(status_code=500, content={"detail": "Internal server error", "error_id": error_id})
+
 app.add_middleware(CORSMiddleware,allow_origins=["http://localhost:5173"],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
 @app.middleware("http")
 async def headers(request,call_next):
